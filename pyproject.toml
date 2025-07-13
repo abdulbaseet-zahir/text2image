@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "text2image"
+version = "0.1.0"
+description = "Utilities for generating synthetic images of text or LaTeX equations."
+readme = "README.md"
+authors = [
+    {name = "Abdulbasit Zahir"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pillow>=9.0.0",
+    "numpy>=1.20",
+    "opencv-python>=4.6",
+    "matplotlib>=3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/abdulbaseet-zahir/text2image"
+Repository = "https://github.com/abdulbaseet.zahir/text2image"
+Issues = "https://github.com/yourusername/abdulbaseet.zahir/issues" 
