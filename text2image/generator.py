@@ -58,7 +58,10 @@ def _transform(
     if background and background_pictures_dir is not None:
         try:
             bg_img, _ = bg_gen.picture(
-                image.size[1], image.size[0], background_pictures_dir
+                image.size[1],
+                image.size[0],
+                background_pictures_dir,
+                fit_to_size=random.choice([True, False]),
             )
             bg_img = bg_img.convert("RGBA")
             image = Image.blend(image, bg_img, alpha=random.uniform(0.1, 0.7))
@@ -76,6 +79,7 @@ def text_to_image(
     font_sizes: Union[int, List[int]] | None = None,
     image_size: Tuple[int, int] = IMAGE_SIZE,
     background_pictures_dir: str | Path | None = None,
+    fill_colors: List[str] | None = None,
 ) -> Image.Image | None:
     """Render *text* (assumed RTL for Kurdish/Arabic) into an RGB image.
 
@@ -110,15 +114,19 @@ def text_to_image(
             if not font_path.exists():
                 print(f"Warning: Font file '{font_path}' not found, skipping.")
                 continue
-            if font_path.suffix.lower() != '.ttf':
+            if font_path.suffix.lower() != ".ttf":
                 print(f"Warning: Font file '{font_path}' is not a .ttf file, skipping.")
                 continue
             font_files.append(font_path)
-        
+
         if not font_files:
-            raise FileNotFoundError("No valid .ttf font files found in the provided list.")
+            raise FileNotFoundError(
+                "No valid .ttf font files found in the provided list."
+            )
     else:
-        raise TypeError("fonts_dir must be a string/Path (directory) or list of font file paths.")
+        raise TypeError(
+            "fonts_dir must be a string/Path (directory) or list of font file paths."
+        )
 
     # Handle font_sizes parameter
     if font_sizes is None:
@@ -144,6 +152,25 @@ def text_to_image(
     elif isinstance(font_sizes, int):
         font_sizes = [font_sizes]
 
+    if fill_colors is None:
+        fill_colors = [
+            "red",
+            "blue",
+            "green",
+            "black",
+            "orange",
+            "crimson",
+            "purple",
+            "brown",
+            "magenta",
+            "teal",
+            "indigo",
+            "maroon",
+            "navy",
+            "olive",
+            "darkblue",
+        ] + ["black"] * 10
+
     try:
         image = Image.new("RGB", image_size, color=(255, 255, 255))
         draw = ImageDraw.Draw(image)
@@ -158,7 +185,14 @@ def text_to_image(
         text_height = text_bbox[3] - text_bbox[1]
         text_x = (image_size[0] - text_width) / 2
         text_y = (image_size[1] - text_height) / 2
-        draw.text((text_x, text_y), text, fill="black", font=font, direction="rtl")
+        draw.text(
+            (text_x, text_y),
+            text,
+            fill=random.choice(fill_colors),
+            font=font,
+            direction="rtl",
+            align=random.choice(["left", "center", "right"]),
+        )
 
         # Crop to bounding box with padding
         gray = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2GRAY)
@@ -169,8 +203,8 @@ def text_to_image(
         x, y, w, h = cv2.boundingRect(coords)
 
         # Random padding
-        w += random.randint(15, 30)
-        h += random.randint(15, 30)
+        w += random.randint(5, 100)
+        h += random.randint(5, 500)
         x = max(0, x - random.randint(7, 15))
         y = max(0, y - random.randint(7, 15))
         cropped = np.array(image)[y : y + h, x : x + w]

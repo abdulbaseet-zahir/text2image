@@ -56,6 +56,7 @@ class BackgroundGenerator:
         height: int,
         width: int,
         pictures_dir: str | Path,
+        fit_to_size: bool = True,
     ) -> Tuple[Image.Image, str]:
         """Pick a random picture from *pictures_dir* and crop/resize."""
 
@@ -71,14 +72,16 @@ class BackgroundGenerator:
 
         chosen = random.choice(image_files)
         picture = Image.open(chosen).convert("RGB")
-
-        # Resize or thumbnail to make sure picture is at least target size.
-        if picture.width < width:
-            new_height = int(picture.height * (width / picture.width))
-            picture = picture.resize((width, new_height), Image.Resampling.LANCZOS)
-        if picture.height < height:
-            new_width = int(picture.width * (height / picture.height))
-            picture.thumbnail((new_width, height), Image.Resampling.LANCZOS)
+        if fit_to_size:
+            picture = picture.resize((width, height), Image.Resampling.LANCZOS)
+        else:
+            # Resize or thumbnail to make sure picture is at least target size.
+            if picture.width < width:
+                new_height = int(picture.height * (width / picture.width))
+                picture = picture.resize((width, new_height), Image.Resampling.LANCZOS)
+            if picture.height < height:
+                new_width = int(picture.width * (height / picture.height))
+                picture.thumbnail((new_width, height), Image.Resampling.LANCZOS)
 
         # Simple crop from top-left corner (could randomize in the future).
         x = 0
