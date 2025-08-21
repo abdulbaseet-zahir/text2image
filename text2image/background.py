@@ -55,23 +55,18 @@ class BackgroundGenerator:
         cls,
         height: int,
         width: int,
-        pictures_dir: str | Path,
+        background_path: str | Path,
         fit_to_size: bool = True,
     ) -> Tuple[Image.Image, str]:
-        """Pick a random picture from *pictures_dir* and crop/resize."""
+        """Load and process a specific background image for synthetic text rendering."""
 
-        pictures_dir = Path(pictures_dir)
-        if not pictures_dir.exists():
+        background_path = Path(background_path)
+        if not background_path.is_file():
             raise FileNotFoundError(
-                f"Pictures directory '{pictures_dir}' does not exist."
+                f"Background image '{background_path}' does not exist or is not a file."
             )
 
-        image_files = [p for p in pictures_dir.iterdir() if p.is_file()]
-        if not image_files:
-            raise RuntimeError("No images were found in the pictures directory!")
-
-        chosen = random.choice(image_files)
-        picture = Image.open(chosen).convert("RGB")
+        picture = Image.open(background_path).convert("RGB")
         if fit_to_size:
             picture = picture.resize((width, height), Image.Resampling.LANCZOS)
         else:
@@ -87,4 +82,4 @@ class BackgroundGenerator:
         x = 0
         y = 0
         cropped = picture.crop((x, y, x + width, y + height))
-        return cropped, str(chosen)
+        return cropped, str(background_path)

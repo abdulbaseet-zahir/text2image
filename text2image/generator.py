@@ -24,49 +24,51 @@ IMAGE_SIZE: Tuple[int, int] = (1000, 500)
 def _transform(
     image: Image.Image,
     *,
-    distortion: bool = True,
-    background: bool = True,
-    background_pictures_dir: str | Path | None = None,
+    distortion_type: str | None = None,
+    background_image_path: str | Path | None = None,
+    blur_radius: float | None = None,
 ) -> Image.Image:
-    """Apply random post-processing (distortion, blur, blending with background)."""
+    """Apply post-processing (distortion, blur, blending with background)."""
 
     dg = DistorsionGenerator()
     bg_gen = BackgroundGenerator()
 
     # Distortion
-    if distortion and random.choice([True, False]):
-        dist_type = random.choice(["random", "sin", "cos"])
-        if dist_type == "random":
+    if distortion_type is not None:
+        if distortion_type == "random":
             image = dg.random(image, vertical=False, horizontal=False)
-        elif dist_type == "sin":
+        elif distortion_type == "sin":
             image = dg.sin(image, vertical=True)
-        else:
+        elif distortion_type == "cos":
             image = dg.cos(image, vertical=True)
+        else:
+            raise ValueError(
+                f"Invalid distortion type: {distortion_type}. Must be 'random', 'sin', or 'cos'."
+            )
 
         white_bg = Image.new("RGBA", image.size, (255, 255, 255, 255))
         image = Image.alpha_composite(white_bg, image).convert("RGBA")
 
     # Blur
-    if random.choice([True, False]):
-        image = image.filter(
-            ImageFilter.GaussianBlur(
-                radius=random.choice([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
-            )
-        )
+    if blur_radius is not None:
+        image = image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
 
     # Background blend
-    if background and background_pictures_dir is not None:
+    if background_image_path is not None:
         try:
             bg_img, _ = bg_gen.picture(
                 image.size[1],
                 image.size[0],
-                background_pictures_dir,
+                background_image_path,
                 fit_to_size=random.choice([True, False]),
             )
             bg_img = bg_img.convert("RGBA")
             image = Image.blend(image, bg_img, alpha=random.uniform(0.1, 0.7))
+        except (FileNotFoundError, ValueError) as e:
+            # Re-raise validation errors
+            raise e
         except Exception:
-            # fallback to white background on failure
+            # fallback to white background on failure for other errors (PIL, etc.)
             pass
 
     return image.convert("RGB")
@@ -75,11 +77,15 @@ def _transform(
 def text_to_image(
     text: str,
     *,
-    fonts_dir: Union[str, Path, List[Union[str, Path]]],
-    font_sizes: Union[int, List[int]] | None = None,
+    font_path: Union[str, Path],
+    font_size: int,
     image_size: Tuple[int, int] = IMAGE_SIZE,
-    background_pictures_dir: str | Path | None = None,
-    fill_colors: List[str] | None = None,
+    background_image_path: str | Path | None = None,
+    text_colors: str = "black",
+    distortion_type: str | None = None,
+    blur_radius: float | None = None,
+    text_dir: str = "rtl",
+    text_align: str = "center",
 ) -> Image.Image | None:
     """Render *text* (assumed RTL for Kurdish/Arabic) into an RGB image.
 
@@ -87,96 +93,37 @@ def text_to_image(
     ----------
     text: str
         The text to render.
-    fonts_dir: str | Path | list[str | Path]
-        Directory containing `.ttf` font files, or list of specific font file paths.
-    font_sizes: int | list[int] | None
-        Font size(s) to use. If int, uses that specific size.
-        If list, randomly chooses from the sequence.
-        If None, uses default range of sizes.
+    font_path: str | Path
+        Path to a specific .ttf font file.
+    font_size: int
+        Font size to use. If None, uses default range of sizes.
     image_size: tuple[int, int]
         Size of canvas before cropping text bounding box.
-    background_pictures_dir: Optional[str | Path]
-        If provided, blend resulting image with a random picture from this directory.
+    background_image_path: Optional[str | Path]
+        If provided, blend resulting image with a background image. Must be a path to a single image file.
+    text_colors: str
+        Color of the text.
+    distortion_type: str
+        Type of distortion: "random", "sin", or "cos" (default: None).
+    blur_radius: float | None
+        Radius for Gaussian blur (default: None).
+    text_dir: str
+        Text direction: "rtl" (right-to-left) or "ltr" (left-to-right) (default: "rtl").
+    text_align: str
+        Text alignment: "left", "center", or "right" (default: "center").
     """
 
-    # Handle fonts_dir parameter - can be directory path or list of font files
-    if isinstance(fonts_dir, (str, Path)):
-        # Single directory path
-        fonts_dir = Path(fonts_dir)
-        font_files = list(fonts_dir.glob("*.ttf"))
-        if not font_files:
-            raise FileNotFoundError(f"No .ttf fonts found in directory '{fonts_dir}'.")
-    elif isinstance(fonts_dir, list):
-        # List of font file paths
-        font_files = []
-        for font_path in fonts_dir:
-            font_path = Path(font_path)
-            if not font_path.exists():
-                print(f"Warning: Font file '{font_path}' not found, skipping.")
-                continue
-            if font_path.suffix.lower() != ".ttf":
-                print(f"Warning: Font file '{font_path}' is not a .ttf file, skipping.")
-                continue
-            font_files.append(font_path)
-
-        if not font_files:
-            raise FileNotFoundError(
-                "No valid .ttf font files found in the provided list."
-            )
-    else:
-        raise TypeError(
-            "fonts_dir must be a string/Path (directory) or list of font file paths."
-        )
-
-    # Handle font_sizes parameter
-    if font_sizes is None:
-        font_sizes = [
-            10,
-            12,
-            14,
-            16,
-            18,
-            20,
-            22,
-            24,
-            26,
-            28,
-            30,
-            32,
-            34,
-            36,
-            38,
-            40,
-            42,
-        ]
-    elif isinstance(font_sizes, int):
-        font_sizes = [font_sizes]
-
-    if fill_colors is None:
-        fill_colors = [
-            "red",
-            "blue",
-            "green",
-            "black",
-            "orange",
-            "crimson",
-            "purple",
-            "brown",
-            "magenta",
-            "teal",
-            "indigo",
-            "maroon",
-            "navy",
-            "olive",
-            "darkblue",
-        ] + ["black"] * 10
+    # Handle font_path parameter - must be a valid font file
+    font_path = Path(font_path)
+    if not font_path.exists():
+        raise FileNotFoundError(f"Font file '{font_path}' not found.")
+    if font_path.suffix.lower() != ".ttf":
+        raise ValueError(f"Font file '{font_path}' is not a .ttf file.")
 
     try:
         image = Image.new("RGB", image_size, color=(255, 255, 255))
         draw = ImageDraw.Draw(image)
 
-        font_path = random.choice(font_files)
-        font_size = random.choice(font_sizes)
         font = ImageFont.truetype(str(font_path), font_size)
 
         # Center text
@@ -185,14 +132,25 @@ def text_to_image(
         text_height = text_bbox[3] - text_bbox[1]
         text_x = (image_size[0] - text_width) / 2
         text_y = (image_size[1] - text_height) / 2
-        draw.text(
-            (text_x, text_y),
-            text,
-            fill=random.choice(fill_colors),
-            font=font,
-            direction="rtl",
-            align=random.choice(["left", "center", "right"]),
-        )
+
+        # Try to use text direction and alignment, fallback gracefully if not supported
+        try:
+            draw.text(
+                (text_x, text_y),
+                text,
+                fill=text_colors,
+                font=font,
+                direction=text_dir,
+                align=text_align,
+            )
+        except Exception:
+            # Fallback without direction and alignment if not supported
+            draw.text(
+                (text_x, text_y),
+                text,
+                fill=text_colors,
+                font=font,
+            )
 
         # Crop to bounding box with padding
         gray = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2GRAY)
@@ -203,14 +161,19 @@ def text_to_image(
         x, y, w, h = cv2.boundingRect(coords)
 
         # Random padding
-        w += random.randint(5, 100)
-        h += random.randint(5, 500)
+        w += random.randint(15, 30)
+        h += random.randint(15, 30)
         x = max(0, x - random.randint(7, 15))
         y = max(0, y - random.randint(7, 15))
         cropped = np.array(image)[y : y + h, x : x + w]
         img_rgba = Image.fromarray(cropped).convert("RGBA")
 
-        return _transform(img_rgba, background_pictures_dir=background_pictures_dir)
+        return _transform(
+            img_rgba,
+            background_image_path=background_image_path,
+            distortion_type=distortion_type,
+            blur_radius=blur_radius,
+        )
     except Exception as exc:
         print(exc)
         print(f"Skipped text '{text}'")
@@ -222,7 +185,7 @@ def equation_to_image(
     *,
     dpi: int = 300,
     padding: int = 15,
-    background_pictures_dir: str | Path | None = None,
+    background_image_path: str | Path | None = None,
 ) -> Image.Image | None:
     """Render a LaTeX/MathText *equation* into an RGB image.
 
@@ -265,7 +228,7 @@ def equation_to_image(
         cropped = arr[y : y + h, x : x + w]
         img_rgba = Image.fromarray(cropped).convert("RGBA")
 
-        return _transform(img_rgba, background_pictures_dir=background_pictures_dir)
+        return _transform(img_rgba, background_image_path=background_image_path)
     except Exception as exc:
         print(exc)
         print(f"Skipped equation '{equation}'")

@@ -10,6 +10,7 @@ A Python package for generating synthetic images from text and LaTeX equations. 
 - **Background Effects**: Apply various background styles including Gaussian noise, quasicrystal patterns, and image blending
 - **Distortion Effects**: Add realistic distortion using sine, cosine, or random transformations
 - **Post-processing**: Automatic blur effects and background blending for more realistic results
+- **Text Control**: Control text direction (RTL/LTR) and alignment (left/center/right)
 
 ## Installation
 
@@ -30,20 +31,33 @@ from PIL import Image
 # Generate an image from text
 image = text_to_image(
     text="Hello World",
-    fonts_dir="path/to/your/fonts",  # Directory containing .ttf files
-    font_sizes=[24, 28, 32],  # Optional: specify font sizes as list
+    font_path="fonts/arial.ttf",  # Path to specific .ttf font file
+    font_size=24,  # Font size as integer
     image_size=(800, 400)  # Optional: specify canvas size
-)
-
-# Or specify individual font files
-image = text_to_image(
-    text="Hello World",
-    fonts_dir=["fonts/arial.ttf", "fonts/times.ttf"],  # List of specific font files
-    font_sizes=24
 )
 
 if image:
     image.save("output.png")
+```
+
+### Advanced Text to Image with All Parameters
+
+```python
+from text2image import text_to_image
+
+# Generate text with all customization options
+image = text_to_image(
+    text="سڵاو، باشی بەڕێز!!",  # Kurdish text
+    font_path="fonts/kurdish.ttf",
+    font_size=28,
+    image_size=(1200, 600),
+    background_image_path="backgrounds/paper_texture.png",  # Single background image file
+    text_colors="red",  # Text color
+    distortion_type="sin",  # "random", "sin", or "cos"
+    blur_radius=0.3,
+    text_dir="rtl",  # "rtl" (right-to-left) or "ltr" (left-to-right)
+    text_align="center"  # "left", "center", or "right"
+)
 ```
 
 ### LaTeX Equation to Image
@@ -55,7 +69,8 @@ from text2image import equation_to_image
 image = equation_to_image(
     equation="x^2 + y^2 = r^2",
     dpi=300,  # Optional: specify DPI
-    padding=20  # Optional: specify padding around equation
+    padding=20,  # Optional: specify padding around equation
+    background_image_path="backgrounds/paper_texture.png"  # Optional: background image file
 )
 
 if image:
@@ -72,61 +87,120 @@ if image:
 
 ## Usage Examples
 
-### Advanced Usage with Background Effects
+### Text Direction and Alignment
 
 ```python
 from text2image import text_to_image
 
-# Generate text with background pictures
+# Right-to-left text (Arabic/Kurdish) with right alignment
 image = text_to_image(
-    text="مرحبا بالعالم",  # Arabic text
-    fonts_dir="fonts/",
-    background_pictures_dir="backgrounds/"  # Directory with background images
+    text="سڵاو، باشی بەڕێز!!",
+    font_path="fonts/kurdish.ttf",
+    font_size=22,
+    text_dir="rtl",
+    text_align="right"
+)
+
+# Left-to-right text with left alignment
+image = text_to_image(
+    text="Hello World",
+    font_path="fonts/arial.ttf",
+    font_size=24,
+    text_dir="ltr",
+    text_align="left"
 )
 ```
 
-### Custom Font Sizes and Image Sizes
+### Distortion Effects
 
 ```python
 from text2image import text_to_image
 
-# Generate with specific font sizes and image dimensions
+# Sine wave distortion
 image = text_to_image(
-    text="Kurdish Text: سڵاو",
-    fonts_dir="fonts/",
-    font_sizes=[16, 18, 20, 22],  # Only use these font sizes
-    image_size=(1200, 600)  # Larger canvas
+    text="Distorted Text",
+    font_path="fonts/times.ttf",
+    font_size=32,
+    distortion_type="sin"
 )
 
-# Or use specific font files with different sizes
+# Cosine wave distortion
 image = text_to_image(
-    text="Custom fonts",
-    fonts_dir=["fonts/arabic.ttf", "fonts/kurdish.ttf"],
-    font_sizes=[20, 24, 28],  # Randomly choose from these sizes
-    image_size=(800, 400)
+    text="Wave Text",
+    font_path="fonts/arial.ttf",
+    font_size=28,
+    distortion_type="cos"
 )
 
-# Or use a single font size
+# Random distortion
 image = text_to_image(
-    text="Fixed size text",
-    fonts_dir="fonts/",
-    font_sizes=24,  # Use only this font size
-    image_size=(800, 400)
+    text="Random Text",
+    font_path="fonts/calibri.ttf",
+    font_size=26,
+    distortion_type="random"
+)
+```
+
+### Blur Effects
+
+```python
+from text2image import text_to_image
+
+# Heavy blur
+image = text_to_image(
+    text="Blurry Text",
+    font_path="fonts/verdana.ttf",
+    font_size=30,
+    blur_radius=0.8
+)
+
+# No blur
+image = text_to_image(
+    text="Sharp Text",
+    font_path="fonts/georgia.ttf",
+    font_size=26,
+    blur=False
+)
+```
+
+### Background Effects
+
+```python
+from text2image import text_to_image
+
+# With background image
+image = text_to_image(
+    text="Text with Background",
+    font_path="fonts/arial.ttf",
+    font_size=24,
+    background_image_path="backgrounds/paper_texture.png"  # Specific image file
+)
+
+# Without background
+image = text_to_image(
+    text="Text without Background",
+    font_path="fonts/arial.ttf",
+    font_size=24,
 )
 ```
 
 ## API Reference
 
-### `text_to_image(text, fonts_dir, **kwargs)`
+### `text_to_image(text, font_path, font_size, **kwargs)`
 
 Generate an image from text.
 
 **Parameters:**
 - `text` (str): The text to render
-- `fonts_dir` (str|Path|list[str|Path]): Directory containing .ttf font files, or list of specific font file paths
-- `font_sizes` (int|list[int], optional): Font size(s) to use. If int, uses that specific size. If list, randomly chooses from the sequence
-- `image_size` (tuple[int, int], optional): Canvas size before cropping
-- `background_pictures_dir` (str|Path, optional): Directory with background images
+- `font_path` (str|Path): Path to a specific .ttf font file
+- `font_size` (int): Font size to use
+- `image_size` (tuple[int, int], optional): Canvas size before cropping (default: (1000, 500))
+- `background_image_path` (str|Path, optional): Path to a single background image file
+- `text_colors` (str, optional): Color of the text (default: "black")
+- `distortion_type` (str, optional): Type of distortion: "random", "sin", or "cos" (default: None)
+- `blur_radius` (float, optional): Radius for Gaussian blur (default: 0.3)
+- `text_dir` (str, optional): Text direction: "rtl" or "ltr" (default: "rtl")
+- `text_align` (str, optional): Text alignment: "left", "center", or "right" (default: "center")
 
 **Returns:**
 - `PIL.Image.Image` or `None`: Generated image or None if generation failed
@@ -139,7 +213,7 @@ Generate an image from a LaTeX equation.
 - `equation` (str): LaTeX equation string
 - `dpi` (int, optional): DPI for rendering (default: 300)
 - `padding` (int, optional): Padding around equation (default: 15)
-- `background_pictures_dir` (str|Path, optional): Directory with background images
+- `background_image_path` (str|Path, optional): Path to a single background image file
 
 **Returns:**
 - `PIL.Image.Image` or `None`: Generated image or None if generation failed
@@ -152,6 +226,22 @@ The package includes several background generators:
 - **Plain White**: Clean white background
 - **Quasicrystal**: Abstract geometric patterns
 - **Picture Blending**: Blend with user-provided images
+
+#### Using Background Images
+
+You can use a single background image file:
+
+```python
+from text2image import text_to_image
+
+# Use a single background image
+image = text_to_image(
+    text="Hello World",
+    font_path="fonts/arial.ttf",
+    font_size=24,
+    background_image_path="backgrounds/paper_texture.png"  # Single image file
+)
+```
 
 ## Distortion Effects
 
