@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import io
 import random
-import subprocess
-import tempfile
 from pathlib import Path
-from typing import Tuple, Union, List
+from typing import Tuple, Union
 
 import cv2
 import numpy as np
@@ -86,7 +84,8 @@ def text_to_image(
     blur_radius: float | None = None,
     text_dir: str = "rtl",
     text_align: str = "center",
-) -> Image.Image | None:
+    random_padding: bool | dict[str, int | tuple[int, int] | list[int]] = True,
+) -> tuple[Image.Image, str]:
     """Render *text* (assumed RTL for Kurdish/Arabic) into an RGB image.
 
     Parameters
@@ -111,6 +110,14 @@ def text_to_image(
         Text direction: "rtl" (right-to-left) or "ltr" (left-to-right) (default: "rtl").
     text_align: str
         Text alignment: "left", "center", or "right" (default: "center").
+    random_padding: bool | dict
+        If True, adds a small random padding on all sides. If False, no padding.
+        If a dict, you can control padding per side with pixel values or ranges:
+        keys: "left", "right", "top", "bottom", "horizontal", "vertical", "all".
+        - Each value can be an int (exact pixels) or a (min, max) tuple/list for a random range.
+        - "all" applies to every side unless overridden by a more specific key.
+        - "horizontal" applies to left and right when they are not explicitly set.
+        - "vertical" applies to top and bottom when they are not explicitly set.
     """
 
     # Handle font_path parameter - must be a valid font file
@@ -133,24 +140,14 @@ def text_to_image(
         text_x = (image_size[0] - text_width) / 2
         text_y = (image_size[1] - text_height) / 2
 
-        # Try to use text direction and alignment, fallback gracefully if not supported
-        try:
-            draw.text(
-                (text_x, text_y),
-                text,
-                fill=text_colors,
-                font=font,
-                direction=text_dir,
-                align=text_align,
-            )
-        except Exception:
-            # Fallback without direction and alignment if not supported
-            draw.text(
-                (text_x, text_y),
-                text,
-                fill=text_colors,
-                font=font,
-            )
+        draw.text(
+            (text_x, text_y),
+            text,
+            fill=text_colors if text_colors != "transparent" else "black",
+            font=font,
+            direction=text_dir,
+            align=text_align,
+        )
 
         # Crop to bounding box with padding
         gray = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2GRAY)
@@ -160,11 +157,65 @@ def text_to_image(
             return None
         x, y, w, h = cv2.boundingRect(coords)
 
-        # Random padding
-        w += random.randint(15, 30)
-        h += random.randint(15, 30)
-        x = max(0, x - random.randint(7, 15))
-        y = max(0, y - random.randint(7, 15))
+        if text_colors == "transparent":
+            image = Image.new("RGB", image_size, color=(255, 255, 255))
+
+        # Padding logic (bool for legacy behavior, dict for per-side control)
+        pad_left = pad_right = pad_top = pad_bottom = 0
+
+        if isinstance(random_padding, bool):
+            if random_padding:
+                pad_left = random.randint(7, 15)
+                pad_right = random.randint(7, 15)
+                pad_top = random.randint(7, 15)
+                pad_bottom = random.randint(7, 15)
+        elif isinstance(random_padding, dict):
+
+            def _parse_pad(value):
+                if isinstance(value, tuple) and len(value) == 2:
+                    a, b = value
+                    return random.randint(min(a, b), max(a, b))
+                if isinstance(value, list) and len(value) == 2:
+                    a, b = value
+                    return random.randint(min(a, b), max(a, b))
+                if isinstance(value, int):
+                    return value
+                return 0
+
+            all_pad = random_padding.get("all", None)
+            horiz_pad = random_padding.get("horizontal", None)
+            vert_pad = random_padding.get("vertical", None)
+
+            if all_pad is not None:
+                pad_left = pad_right = pad_top = pad_bottom = _parse_pad(all_pad)
+
+            if horiz_pad is not None:
+                if pad_left == 0:
+                    pad_left = _parse_pad(horiz_pad)
+                if pad_right == 0:
+                    pad_right = _parse_pad(horiz_pad)
+
+            if vert_pad is not None:
+                if pad_top == 0:
+                    pad_top = _parse_pad(vert_pad)
+                if pad_bottom == 0:
+                    pad_bottom = _parse_pad(vert_pad)
+
+            if "left" in random_padding:
+                pad_left = _parse_pad(random_padding["left"])
+            if "right" in random_padding:
+                pad_right = _parse_pad(random_padding["right"])
+            if "top" in random_padding:
+                pad_top = _parse_pad(random_padding["top"])
+            if "bottom" in random_padding:
+                pad_bottom = _parse_pad(random_padding["bottom"])
+
+        # Apply padding and clamp to image bounds
+        x = max(0, x - pad_left)
+        y = max(0, y - pad_top)
+        w = min(image_size[0] - x, w + pad_left + pad_right)
+        h = min(image_size[1] - y, h + pad_top + pad_bottom)
+
         cropped = np.array(image)[y : y + h, x : x + w]
         img_rgba = Image.fromarray(cropped).convert("RGBA")
 
@@ -173,11 +224,11 @@ def text_to_image(
             background_image_path=background_image_path,
             distortion_type=distortion_type,
             blur_radius=blur_radius,
-        )
+        ), (text if text_colors != "transparent" else "")
     except Exception as exc:
         print(exc)
         print(f"Skipped text '{text}'")
-        return None
+        return
 
 
 def equation_to_image(
