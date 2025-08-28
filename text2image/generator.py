@@ -154,7 +154,7 @@ def text_to_image(
         gray = 255 * (gray < 128).astype(np.uint8)
         coords = cv2.findNonZero(gray)
         if coords is None:
-            return None
+            return None, None
         x, y, w, h = cv2.boundingRect(coords)
 
         if text_colors == "transparent":
@@ -224,11 +224,11 @@ def text_to_image(
             background_image_path=background_image_path,
             distortion_type=distortion_type,
             blur_radius=blur_radius,
-        ), (text if text_colors != "transparent" else "")
+        ), (text if text_colors != "transparent" else "NOTEXT")
     except Exception as exc:
         print(exc)
         print(f"Skipped text '{text}'")
-        return
+        return None, None
 
 
 def equation_to_image(
