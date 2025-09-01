@@ -34,7 +34,11 @@ def _transform(
     # Distortion
     if distortion_type is not None:
         if distortion_type == "random":
-            image = dg.random(image, vertical=False, horizontal=False)
+            image = dg.random(
+                image,
+                vertical=False,
+                horizontal=False,
+            )
         elif distortion_type == "sin":
             image = dg.sin(image, vertical=True)
         elif distortion_type == "cos":
@@ -72,18 +76,91 @@ def _transform(
     return image.convert("RGB")
 
 
+def _calculate_text_dimensions(
+    text: str,
+    font_path: Union[str, Path],
+    font_size: int,
+    text_dir: str,
+    text_align: str,
+) -> Tuple[int, int]:
+    """Calculate the dimensions needed to render text with given font and settings.
+
+    Returns
+    -------
+    Tuple[int, int]
+        (width, height) needed to render the text
+    """
+    # Create a temporary image to measure text
+    temp_image = Image.new("RGB", (1, 1), color=(255, 255, 255))
+    temp_draw = ImageDraw.Draw(temp_image)
+    font = ImageFont.truetype(str(font_path), font_size)
+
+    # Get text bounding box
+    text_bbox = temp_draw.textbbox(
+        (0, 0),
+        text,
+        font=font,
+        direction=text_dir,
+        align=text_align,
+    )
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+
+    return int(text_width), int(text_height)
+
+
+def _calculate_optimal_canvas_size(
+    text_width: int,
+    text_height: int,
+    padding: int = 50,
+    min_size: Tuple[int, int] = (200, 100),
+    max_size: Tuple[int, int] = (2000, 1000),
+) -> Tuple[int, int]:
+    """Calculate optimal canvas size based on text dimensions.
+
+    Parameters
+    ----------
+    text_width, text_height : int
+        Dimensions of the text
+    padding : int
+        Padding to add around the text
+    min_size : Tuple[int, int]
+        Minimum canvas size (width, height)
+    max_size : Tuple[int, int]
+        Maximum canvas size (width, height)
+
+    Returns
+    -------
+    Tuple[int, int]
+        Optimal canvas size (width, height)
+    """
+    # Calculate required size with padding
+    required_width = text_width + (2 * padding)
+    required_height = text_height + (2 * padding)
+
+    # Apply min/max constraints
+    canvas_width = max(min_size[0], min(required_width, max_size[0]))
+    canvas_height = max(min_size[1], min(required_height, max_size[1]))
+
+    return canvas_width, canvas_height
+
+
 def text_to_image(
     text: str,
     *,
     font_path: Union[str, Path],
     font_size: int,
-    image_size: Tuple[int, int] = IMAGE_SIZE,
+    image_size: Tuple[int, int] | None = None,
+    auto_size: bool = False,
+    padding: int = 50,
+    min_canvas_size: Tuple[int, int] = (200, 100),
+    max_canvas_size: Tuple[int, int] = (5000, 3000),
     background_image_path: str | Path | None = None,
     text_colors: str = "black",
     distortion_type: str | None = None,
     blur_radius: float | None = None,
     text_dir: str = "rtl",
-    text_align: str = "center",
+    text_align: str = "right",
     random_padding: bool | dict[str, int | tuple[int, int] | list[int]] = True,
 ) -> tuple[Image.Image, str]:
     """Render *text* (assumed RTL for Kurdish/Arabic) into an RGB image.
@@ -95,9 +172,18 @@ def text_to_image(
     font_path: str | Path
         Path to a specific .ttf font file.
     font_size: int
-        Font size to use. If None, uses default range of sizes.
-    image_size: tuple[int, int]
-        Size of canvas before cropping text bounding box.
+        Font size to use.
+    image_size: tuple[int, int] | None
+        Size of canvas before cropping text bounding box. If None and auto_size=False, uses default IMAGE_SIZE.
+    auto_size: bool
+        If True, automatically calculate canvas size based on text dimensions to prevent text overflow.
+        If False, use image_size parameter (default: False).
+    padding: int
+        Padding around text when auto_size=True (default: 50).
+    min_canvas_size: tuple[int, int]
+        Minimum canvas size when auto_size=True (default: (200, 100)).
+    max_canvas_size: tuple[int, int]
+        Maximum canvas size when auto_size=True (default: (2000, 1000)).
     background_image_path: Optional[str | Path]
         If provided, blend resulting image with a background image. Must be a path to a single image file.
     text_colors: str
@@ -109,7 +195,7 @@ def text_to_image(
     text_dir: str
         Text direction: "rtl" (right-to-left) or "ltr" (left-to-right) (default: "rtl").
     text_align: str
-        Text alignment: "left", "center", or "right" (default: "center").
+        Text alignment: "left", "center", or "right" (default: "right").
     random_padding: bool | dict
         If True, adds a small random padding on all sides. If False, no padding.
         If a dict, you can control padding per side with pixel values or ranges:
@@ -128,15 +214,32 @@ def text_to_image(
         raise ValueError(f"Font file '{font_path}' is not a .ttf file.")
 
     try:
+        # Determine canvas size
+        if auto_size:
+            # Calculate text dimensions first
+            text_width, text_height = _calculate_text_dimensions(
+                text, font_path, font_size, text_dir, text_align
+            )
+            # Calculate optimal canvas size
+            image_size = _calculate_optimal_canvas_size(
+                text_width, text_height, padding, min_canvas_size, max_canvas_size
+            )
+            print(image_size)
+        elif image_size is None:
+            # Use default size if neither auto_size nor image_size is specified
+            image_size = IMAGE_SIZE
+
         image = Image.new("RGB", image_size, color=(255, 255, 255))
         draw = ImageDraw.Draw(image)
 
         font = ImageFont.truetype(str(font_path), font_size)
 
-        # Center text
+        # Get text dimensions for positioning
         text_bbox = draw.textbbox((0, 0), text, font=font)
         text_width = text_bbox[2] - text_bbox[0]
         text_height = text_bbox[3] - text_bbox[1]
+
+        # Center text
         text_x = (image_size[0] - text_width) / 2
         text_y = (image_size[1] - text_height) / 2
 
@@ -165,10 +268,10 @@ def text_to_image(
 
         if isinstance(random_padding, bool):
             if random_padding:
-                pad_left = random.randint(7, 15)
-                pad_right = random.randint(7, 15)
-                pad_top = random.randint(7, 15)
-                pad_bottom = random.randint(7, 15)
+                pad_left = random.randint(3, 50)
+                pad_right = random.randint(3, 50)
+                pad_top = random.randint(3, 50)
+                pad_bottom = random.randint(3, 50)
         elif isinstance(random_padding, dict):
 
             def _parse_pad(value):

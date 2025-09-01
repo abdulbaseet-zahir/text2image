@@ -77,7 +77,8 @@ class DistorsionGenerator:
     def sin(
         cls, image: Image.Image, *, vertical: bool = False, horizontal: bool = False
     ) -> Image.Image:
-        max_offset = int(image.height**0.5)
+        ratio = random.random() * 0.5
+        max_offset = int(image.height**ratio)
         return cls._apply_func_distorsion(
             image,
             vertical,
@@ -90,7 +91,8 @@ class DistorsionGenerator:
     def cos(
         cls, image: Image.Image, *, vertical: bool = False, horizontal: bool = False
     ) -> Image.Image:
-        max_offset = int(image.height**0.5)
+        ratio = random.random() * 0.5
+        max_offset = int(image.height**ratio)
         return cls._apply_func_distorsion(
             image,
             vertical,
@@ -103,7 +105,8 @@ class DistorsionGenerator:
     def random(
         cls, image: Image.Image, *, vertical: bool = False, horizontal: bool = False
     ) -> Image.Image:
-        max_offset = int(image.height**0.4)
+        ratio = random.random() * 0.5
+        max_offset = int(image.height**ratio)
         return cls._apply_func_distorsion(
             image,
             vertical,
