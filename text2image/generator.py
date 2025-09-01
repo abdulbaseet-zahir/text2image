@@ -224,7 +224,7 @@ def text_to_image(
             image_size = _calculate_optimal_canvas_size(
                 text_width, text_height, padding, min_canvas_size, max_canvas_size
             )
-            print(image_size)
+
         elif image_size is None:
             # Use default size if neither auto_size nor image_size is specified
             image_size = IMAGE_SIZE
