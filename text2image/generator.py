@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import pathlib
 import random
 from pathlib import Path
 from typing import Tuple, Union
@@ -65,7 +66,7 @@ def _transform(
                 fit_to_size=random.choice([True, False]),
             )
             bg_img = bg_img.convert("RGBA")
-            image = Image.blend(image, bg_img, alpha=random.uniform(0.1, 0.7))
+            image = Image.blend(bg_img, image, alpha=random.uniform(0.1, 0.7))
         except (FileNotFoundError, ValueError) as e:
             # Re-raise validation errors
             raise e
@@ -162,6 +163,10 @@ def text_to_image(
     text_dir: str = "rtl",
     text_align: str = "right",
     random_padding: bool | dict[str, int | tuple[int, int] | list[int]] = True,
+    random_faded_areas: bool = False,
+    num_faded_areas: int = 2,
+    max_area_size: float = 0.4,
+    faded_opacity: float = 0.3,
 ) -> tuple[Image.Image, str]:
     """Render *text* (assumed RTL for Kurdish/Arabic) into an RGB image.
 
@@ -204,6 +209,17 @@ def text_to_image(
         - "all" applies to every side unless overridden by a more specific key.
         - "horizontal" applies to left and right when they are not explicitly set.
         - "vertical" applies to top and bottom when they are not explicitly set.
+    random_faded_areas: bool
+        If True, automatically generates random faded areas (rectangles or ellipses) to mimic bad printer effect.
+        If False, no areas are faded (default: False).
+    num_faded_areas: int
+        Number of random faded areas to generate when random_faded_areas=True (default: 2).
+    max_area_size: float
+        Maximum size of each random faded area as fraction of text dimensions (0.0-1.0).
+        Default: 0.4 (40% of text width/height).
+    faded_opacity: float
+        Opacity level for faded areas, between 0.0 (completely transparent) and 1.0 (fully opaque).
+        Default: 0.3 (30% opacity).
     """
 
     # Handle font_path parameter - must be a valid font file
@@ -234,23 +250,94 @@ def text_to_image(
 
         font = ImageFont.truetype(str(font_path), font_size)
 
-        # Get text dimensions for positioning
-        text_bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = text_bbox[2] - text_bbox[0]
-        text_height = text_bbox[3] - text_bbox[1]
+        # Handle random faded areas functionality
+        if random_faded_areas:
+            # Create RGBA image for opacity control
+            image_rgba = Image.new("RGBA", image_size, color=(255, 255, 255, 255))
+            draw_rgba = ImageDraw.Draw(image_rgba)
 
-        # Center text
-        text_x = (image_size[0] - text_width) / 2
-        text_y = (image_size[1] - text_height) / 2
+            # Get text dimensions for positioning
+            text_bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
 
-        draw.text(
-            (text_x, text_y),
-            text,
-            fill=text_colors if text_colors != "transparent" else "black",
-            font=font,
-            direction=text_dir,
-            align=text_align,
-        )
+            # Center text
+            text_x = (image_size[0] - text_width) / 2
+            text_y = (image_size[1] - text_height) / 2
+
+            # Draw the full text first with normal opacity
+            draw_rgba.text(
+                (text_x, text_y),
+                text,
+                fill=text_colors if text_colors != "transparent" else "black",
+                font=font,
+                direction=text_dir,
+                align=text_align,
+            )
+
+            # Create a mask for faded areas
+            fade_mask = Image.new("L", image_size, 255)  # Start with full opacity
+            fade_draw = ImageDraw.Draw(fade_mask)
+
+            # Generate random faded areas
+            for _ in range(num_faded_areas):
+                # Generate random area dimensions
+                area_width = random.uniform(0.1, max_area_size) * text_width
+                area_height = random.uniform(0.1, max_area_size) * text_height
+
+                # Generate random position within text bounds
+                max_x = text_width - area_width
+                max_y = text_height - area_height
+
+                # Ensure area stays within text bounds
+                if max_x > 0 and max_y > 0:
+                    area_x = text_x + random.uniform(0, max_x)
+                    area_y = text_y + random.uniform(0, max_y)
+
+                    # Randomly choose between rectangle and ellipse (rounded) shape
+                    shape_type = random.choice(["rectangle", "ellipse"])
+
+                    if shape_type == "rectangle":
+                        # Draw rectangular faded area
+                        fade_draw.rectangle(
+                            [area_x, area_y, area_x + area_width, area_y + area_height],
+                            fill=int(255 * faded_opacity),
+                        )
+                    else:
+                        # Draw elliptical (rounded) faded area
+                        fade_draw.ellipse(
+                            [area_x, area_y, area_x + area_width, area_y + area_height],
+                            fill=int(255 * faded_opacity),
+                        )
+
+            # Apply the mask to create the faded effect
+            image_rgba.putalpha(fade_mask)
+
+            # Convert RGBA back to RGB
+            image = Image.new("RGB", image_size, color=(255, 255, 255))
+            image.paste(
+                image_rgba, mask=image_rgba.split()[-1]
+            )  # Use alpha channel as mask
+
+        else:
+            # Original text rendering for non-faded text
+            # Get text dimensions for positioning
+            text_bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+
+            # Center text
+            text_x = (image_size[0] - text_width) / 2
+            text_y = (image_size[1] - text_height) / 2
+
+            draw.text(
+                (text_x, text_y),
+                text,
+                fill=text_colors if text_colors != "transparent" else "black",
+                font=font,
+                direction=text_dir,
+                align=text_align,
+            )
 
         # Crop to bounding box with padding
         gray = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2GRAY)
@@ -387,3 +474,64 @@ def equation_to_image(
         print(exc)
         print(f"Skipped equation '{equation}'")
         return None
+
+
+def text_to_random_image(
+    text: str,
+    font_dir: str,
+    background_dir: str | None = None,
+) -> Image.Image | None:
+
+    fonts = list(pathlib.Path(font_dir).glob("*.ttf"))
+    backgrounds = (
+        list(pathlib.Path(background_dir).glob("*.png")) + [None] * 10
+        if background_dir is not None
+        else [None] * 10
+    )
+
+    text_colors = [
+        "red",
+        "blue",
+        "green",
+        "black",
+        "orange",
+        "crimson",
+        "purple",
+        "brown",
+        "magenta",
+        "teal",
+        "indigo",
+        "maroon",
+        "navy",
+        "olive",
+        "darkblue",
+        "transparent",
+    ] + ["black"] * 50
+
+    background_image_path = (
+        random.choice(backgrounds) if background_dir is not None else None
+    )
+    if background_image_path is not None:
+        background_image_path = background_image_path.as_posix()
+
+    font_path = random.choice(fonts)
+    if font_path is not None:
+        font_path = font_path.as_posix()
+
+    return text_to_image(
+        text,
+        font_path=font_path,
+        font_size=random.randint(12, 24),
+        auto_size=True,
+        background_image_path=background_image_path,
+        text_colors=random.choice(text_colors),
+        distortion_type=random.choice(["random", "sin", "cos"] + [None] * 10),
+        blur_radius=random.uniform(0.1, 1.0) if random.choice([True, False]) else None,
+        text_dir=random.choice(["rtl", "ltr"]),
+        text_align=random.choice(["left", "center", "right"]),
+        random_padding=random.choice([True, False]),
+        random_faded_areas=random.choice([True, False]),
+        num_faded_areas=random.randint(1, 10),
+        max_area_size=random.uniform(0.1, 0.5),
+        faded_opacity=random.uniform(0.1, 0.5),
+    )
