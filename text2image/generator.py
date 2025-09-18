@@ -355,10 +355,10 @@ def text_to_image(
 
         if isinstance(random_padding, bool):
             if random_padding:
-                pad_left = random.randint(3, 50)
-                pad_right = random.randint(3, 50)
-                pad_top = random.randint(3, 50)
-                pad_bottom = random.randint(3, 50)
+                pad_left = random.randint(3, 10)
+                pad_right = random.randint(3, 10)
+                pad_top = random.randint(3, 10)
+                pad_bottom = random.randint(3, 10)
         elif isinstance(random_padding, dict):
 
             def _parse_pad(value):
@@ -521,17 +521,17 @@ def text_to_random_image(
     return text_to_image(
         text,
         font_path=font_path,
-        font_size=random.randint(12, 24),
+        font_size=random.randint(12, 26),
         auto_size=True,
         background_image_path=background_image_path,
         text_colors=random.choice(text_colors),
         distortion_type=random.choice(["random", "sin", "cos"] + [None] * 10),
-        blur_radius=random.uniform(0.1, 1.0) if random.choice([True, False]) else None,
+        blur_radius=random.uniform(0.1, 0.8) if random.choice([True, False]) else None,
         text_dir=random.choice(["rtl", "ltr"]),
         text_align=random.choice(["left", "center", "right"]),
         random_padding=random.choice([True, False]),
         random_faded_areas=random.choice([True, False]),
-        num_faded_areas=random.randint(1, 10),
-        max_area_size=random.uniform(0.1, 0.5),
-        faded_opacity=random.uniform(0.1, 0.5),
+        num_faded_areas=random.randint(1, 3),
+        max_area_size=random.uniform(0.1, 0.3),
+        faded_opacity=random.uniform(0.1, 0.8),
     )
