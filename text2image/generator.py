@@ -8,7 +8,7 @@ from typing import Tuple, Union
 
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
 import matplotlib.pyplot as plt
 
 from .distortion import DistorsionGenerator
@@ -66,7 +66,7 @@ def _transform(
                 fit_to_size=random.choice([True, False]),
             )
             bg_img = bg_img.convert("RGBA")
-            image = Image.blend(bg_img, image, alpha=random.uniform(0.1, 0.7))
+            image = ImageChops.multiply(image, bg_img)
         except (FileNotFoundError, ValueError) as e:
             # Re-raise validation errors
             raise e
@@ -521,7 +521,7 @@ def text_to_random_image(
     return text_to_image(
         text,
         font_path=font_path,
-        font_size=random.randint(12, 26),
+        font_size=random.randint(16, 26),
         auto_size=True,
         background_image_path=background_image_path,
         text_colors=random.choice(text_colors),
@@ -531,7 +531,7 @@ def text_to_random_image(
         text_align=random.choice(["left", "center", "right"]),
         random_padding=random.choice([True, False]),
         random_faded_areas=random.choice([True, False]),
-        num_faded_areas=random.randint(1, 3),
-        max_area_size=random.uniform(0.1, 0.3),
+        num_faded_areas=random.randint(1, 10),
+        max_area_size=random.uniform(0.1, 0.5),
         faded_opacity=random.uniform(0.1, 0.8),
     )

@@ -1,5 +1,11 @@
 from text2image import text_to_random_image
 
+from PIL import features
+
+if not features.check("raqm"):
+    print("raqm is not installed")
+    exit()
+
 text = """
 ژمارەی ئەوانەی لە ئەنجامی بوومەلەرزەکەی شەوی رابردووی
 """
